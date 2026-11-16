@@ -1,0 +1,90 @@
+services:
+  quickbite-db:
+    image: postgres:17-alpine
+    container_name: quickbite-db
+    environment:
+      POSTGRES_DB: ${USER_DB_NAME}
+      POSTGRES_USER: ${USER_DB_USERNAME}
+      POSTGRES_PASSWORD: ${USER_DB_PASSWORD}
+    volumes:
+      - quickbite-db-data:/var/lib/postgresql/data
+      - ./database/init-databases.sql:/docker-entrypoint-initdb.d/10-init-databases.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - quickbite-net
+
+  quickbite-user:
+    build:
+      context: ./user-service
+    container_name: quickbite-user
+    depends_on:
+      quickbite-db:
+        condition: service_healthy
+    ports:
+      - "${USER_SERVER_PORT}:${USER_SERVER_PORT}"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://${DB_HOST}:${DB_PORT}/${USER_DB_NAME}
+      SPRING_DATASOURCE_USERNAME: ${USER_DB_USERNAME}
+      SPRING_DATASOURCE_PASSWORD: ${USER_DB_PASSWORD}
+    networks:
+      - quickbite-net
+
+  quickbite-restaurant:
+    build:
+      context: ./restaurant-service
+    container_name: quickbite-restaurant
+    depends_on:
+      quickbite-db:
+        condition: service_healthy
+    ports:
+      - "${RESTAURANT_SERVER_PORT}:${RESTAURANT_SERVER_PORT}"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://${DB_HOST}:${DB_PORT}/${RESTAURANT_DB_NAME}
+      SPRING_DATASOURCE_USERNAME: ${RESTAURANT_DB_USERNAME}
+      SPRING_DATASOURCE_PASSWORD: ${RESTAURANT_DB_PASSWORD}
+    networks:
+      - quickbite-net
+
+  quickbite-order:
+    build:
+      context: ./order-service
+    container_name: quickbite-order
+    depends_on:
+      quickbite-db:
+        condition: service_healthy
+    ports:
+      - "${ORDER_SERVER_PORT}:${ORDER_SERVER_PORT}"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://${DB_HOST}:${DB_PORT}/${ORDER_DB_NAME}
+      SPRING_DATASOURCE_USERNAME: ${ORDER_DB_USERNAME}
+      SPRING_DATASOURCE_PASSWORD: ${ORDER_DB_PASSWORD}
+    networks:
+      - quickbite-net
+
+  quickbite-notification:
+    build:
+      context: ./notification-service
+    container_name: quickbite-notification
+    depends_on:
+      quickbite-db:
+        condition: service_healthy
+    ports:
+      - "${NOTIFICATION_SERVER_PORT}:${NOTIFICATION_SERVER_PORT}"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://${DB_HOST}:${DB_PORT}/${NOTIFICATION_DB_NAME}
+      SPRING_DATASOURCE_USERNAME: ${NOTIFICATION_DB_USERNAME}
+      SPRING_DATASOURCE_PASSWORD: ${NOTIFICATION_DB_PASSWORD}
+    networks:
+      - quickbite-net
+
+networks:
+  quickbite-net:
+    external: true
+    name: quickbite-net
+
+volumes:
+  quickbite-db-data:
